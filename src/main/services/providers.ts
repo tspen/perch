@@ -56,6 +56,22 @@ export class ProviderService {
       .sort((a, b) => providerRank(a) - providerRank(b) || a.name.localeCompare(b.name));
   }
 
+  async disconnect(id: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }> {
+    const provider = RAW_PROVIDERS.find((item) => item.id === id);
+    if (!provider) throw new Error("Unknown Pi provider: " + id);
+    const authPath = join(this.store.baseDir, "pi-agent", "auth.json");
+    let auth: Record<string, unknown> = {};
+    if (existsSync(authPath)) {
+      try { auth = JSON.parse(readFileSync(authPath, "utf8")); } catch { auth = {}; }
+    }
+    if (auth[provider.id]) {
+      delete auth[provider.id];
+      writeFileSync(authPath, JSON.stringify(auth, null, 2) + "\n", "utf8");
+    }
+    await this.models.refresh().catch(() => undefined);
+    return { ok: true, output: provider.name + " disconnected.", providers: this.list() };
+  }
+
   async connect(id: string, apiKey?: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }> {
     const provider = RAW_PROVIDERS.find((item) => item.id === id);
     if (!provider) throw new Error("Unknown Pi provider: " + id);

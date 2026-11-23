@@ -78,6 +78,7 @@ const api: PerchApi = {
   listSkills: () => invoke("skills:list") as Promise<any>,
   listMcpServers: () => invoke("mcp:list") as Promise<any>,
   listProviders: () => invoke("providers:list") as Promise<any>,
+  disconnectProvider: (id) => invoke("providers:disconnect", id) as Promise<any>,
   connectProvider: (id, apiKey) => invoke("providers:connect", id, apiKey) as Promise<any>,
 
   refreshModels: () => invoke("models:refresh") as Promise<any>,

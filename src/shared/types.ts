@@ -1091,6 +1091,7 @@ export interface PerchApi {
   listMcpServers(): Promise<McpServerInfo[]>;
 
   listProviders(): Promise<ProviderInfo[]>;
+  disconnectProvider(id: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }>;
   connectProvider(id: string, apiKey?: string): Promise<{ ok: boolean; output: string; providers: ProviderInfo[] }>;
   refreshModels(): Promise<ModelInfo[]>;
   getModelDefaults(): Promise<Record<string, string>>;

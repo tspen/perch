@@ -22,11 +22,14 @@ export function ModelPicker({
   React.useEffect(() => {
     inputRef.current?.focus();
   }, []);
-  const providers = useMemo(() => ["all", ...new Set(models.map((model) => model.provider))], [models]);
   const candidates = useMemo(
     () => models.filter((model) => model.available && !model.id.includes(":batch") && !/\\(batch\\)/i.test(model.name) && !model.id.includes("~")),
     [models],
   );
+  const providers = useMemo(() => ["all", ...new Set(candidates.map((model) => model.provider))], [candidates]);
+  React.useEffect(() => {
+    if (provider !== "all" && !providers.includes(provider)) setProvider("all");
+  }, [providers, provider]);
   const filtered = useMemo(() => {
     const lower = query.toLowerCase();
     return candidates

@@ -265,6 +265,13 @@ export function registerIpc(context: IpcContext): void {
   ipcMain.handle("skills:list", () => settings.skills());
   ipcMain.handle("mcp:list", () => settings.mcpServers());
   ipcMain.handle("providers:list", () => providers.list());
+  ipcMain.handle("providers:disconnect", async (_event, id: string) => {
+    const result = await providers.disconnect(id);
+    const list = await models.refresh().catch(() => models.list());
+    broadcast({ type: "models:updated", payload: { models: list, updatedAt: Date.now() } });
+    broadcast({ type: "snapshot", payload: orchestrator.snapshot() });
+    return result;
+  });
   ipcMain.handle("providers:connect", async (_event, id: string, apiKey?: string) => {
     const result = await providers.connect(id, apiKey);
     if (result.ok) {

@@ -37,7 +37,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, PiConfigEntry, PluginPreview, MaintenanceReport, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
+import type { ApprovalMode, AuditEntry, Automation, Environment, EnvVar, InstalledPlugin, McpServerInfo, ModelInfo, PiConfigEntry, PluginPreview, ProviderInfo, MaintenanceReport, RelayInfo, RemoteInfo, RemoteTarget, SkillInfo, ToolApproval, ToolInfo } from "../../../shared/types";
 import { selectedNode, selectedThread, useApp } from "../store";
 import { Badge, Button, Field, IconButton, Modal, Select, Spinner, Toggle, cx, formatCost, formatNumber, relativeTime, statusLabel, truncate } from "./Common";
 import { ModelPicker } from "./ModelPicker";
@@ -347,6 +347,11 @@ function ModelsTab() {
   const state = useApp();
   const settings = state.snapshot?.settings;
   const [pick, setPick] = useState<string | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [providerBusy, setProviderBusy] = useState("");
+  useEffect(() => {
+    void window.perch.listProviders().then(setProviders).catch(() => undefined);
+  }, []);
   const roles = [
     { key: "root", label: "Root orchestrator", hint: "Above all projects. Best global reasoning." },
     { key: "group", label: "Group orchestrator", hint: "Coordinates a group of projects." },
@@ -357,6 +362,32 @@ function ModelsTab() {
   ] as const;
   if (!settings) return null;
   const aaCount = state.models.filter((model) => model.aa?.intelligence != null).length;
+  const connectedProviders = providers.filter((provider) => provider.connected && provider.modelCount > 0);
+  const disconnect = async (provider: ProviderInfo) => {
+    const affected = roles
+      .filter((role) => {
+        const selector = (settings.models as any)[role.key] as string;
+        return state.models.find((model) => model.selector === selector)?.provider === provider.id;
+      })
+      .map((role) => role.label);
+    const warning = affected.length ? `\n\nThese role defaults use it and will need a new model: ${affected.join(", ")}.` : "";
+    if (!confirm(`Disconnect ${provider.name}? Stored credentials will be removed.${warning}`)) return;
+    setProviderBusy(provider.id);
+    try {
+      const result = await window.perch.disconnectProvider(provider.id);
+      setProviders(result.providers);
+      await state.refreshModels();
+      state.pushToast({
+        kind: affected.length ? "warning" : "info",
+        title: `${provider.name} disconnected`,
+        body: affected.length ? `Change the ${affected.join(", ")} model${affected.length === 1 ? "" : "s"} before starting a thread.` : "Stored credentials were removed.",
+      });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Could not disconnect provider", body: String(error) });
+    } finally {
+      setProviderBusy("");
+    }
+  };
   return (
     <>
       <Section title="Role defaults" subtitle="Every level can override this. New threads inherit the role default, then can switch independently." right={<Button size="sm" variant="soft" onClick={() => void state.resetModelDefaults()}><Sparkles size={13} /> Reset to recommended</Button>}>
@@ -400,6 +431,20 @@ function ModelsTab() {
           />
         </div>
       ) : null}
+      <Section title="Providers" subtitle="Connected providers that supply models. Disconnecting removes stored credentials and hides the provider.">
+        {connectedProviders.map((provider) => (
+          <div key={provider.id} className="simple-row">
+            <div>
+              <strong>{provider.name}</strong>
+              <span>{provider.modelCount} model{provider.modelCount === 1 ? "" : "s"}{provider.billing !== "unknown" ? ` · ${provider.billing}` : ""}</span>
+            </div>
+            <Button size="sm" variant="danger" disabled={providerBusy === provider.id} onClick={() => void disconnect(provider)}>
+              {providerBusy === provider.id ? <Spinner size={12} /> : <Trash2 size={12} />} Disconnect
+            </Button>
+          </div>
+        ))}
+        {!connectedProviders.length ? <p className="muted">No connected providers are supplying models.</p> : null}
+      </Section>
       <Disclosure title="Artificial Analysis & catalog" subtitle="Benchmark data and catalog refresh. The recommended defaults already use this.">
         <Row label="Catalog" hint={`${state.models.length} models available through Pi. ${aaCount} have AA scores.`}>
           <Button size="sm" variant="soft" onClick={() => void state.refreshModels()}><RefreshCw size={13} /> Refresh Pi catalog</Button>
