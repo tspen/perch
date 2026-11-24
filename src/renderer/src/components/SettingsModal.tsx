@@ -349,6 +349,7 @@ function ModelsTab() {
   const [pick, setPick] = useState<string | null>(null);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providerBusy, setProviderBusy] = useState("");
+  const [catalogBusy, setCatalogBusy] = useState(false);
   useEffect(() => {
     void window.perch.listProviders().then(setProviders).catch(() => undefined);
   }, []);
@@ -363,6 +364,18 @@ function ModelsTab() {
   if (!settings) return null;
   const aaCount = state.models.filter((model) => model.aa?.intelligence != null).length;
   const connectedProviders = providers.filter((provider) => provider.connected && provider.modelCount > 0);
+  const refreshCatalog = async () => {
+    setCatalogBusy(true);
+    try {
+      await state.refreshModels();
+      setProviders(await window.perch.listProviders());
+      state.pushToast({ kind: "success", title: "Model catalog refreshed" });
+    } catch (error) {
+      state.pushToast({ kind: "error", title: "Could not refresh models", body: String(error) });
+    } finally {
+      setCatalogBusy(false);
+    }
+  };
   const disconnect = async (provider: ProviderInfo) => {
     const affected = roles
       .filter((role) => {
@@ -390,7 +403,7 @@ function ModelsTab() {
   };
   return (
     <>
-      <Section title="Role defaults" subtitle="Every level can override this. New threads inherit the role default, then can switch independently." right={<Button size="sm" variant="soft" onClick={() => void state.resetModelDefaults()}><Sparkles size={13} /> Reset to recommended</Button>}>
+      <Section title="Role defaults" subtitle="Every level can override this. New threads inherit the role default, then can switch independently." right={<div className="inline-actions"><Button size="sm" variant="soft" disabled={catalogBusy} onClick={() => void refreshCatalog()}>{catalogBusy ? <Spinner size={13} /> : <RefreshCw size={13} />} Refresh catalog</Button><Button size="sm" variant="soft" onClick={() => void state.resetModelDefaults()}><Sparkles size={13} /> Reset to recommended</Button></div>}>
         {roles.map((role) => {
           const selector = (settings.models as any)[role.key] as string;
           const model = state.models.find((item) => item.selector === selector);
@@ -447,7 +460,7 @@ function ModelsTab() {
       </Section>
       <Disclosure title="Artificial Analysis & catalog" subtitle="Benchmark data and catalog refresh. The recommended defaults already use this.">
         <Row label="Catalog" hint={`${state.models.length} models available through Pi. ${aaCount} have AA scores.`}>
-          <Button size="sm" variant="soft" onClick={() => void state.refreshModels()}><RefreshCw size={13} /> Refresh Pi catalog</Button>
+          <Button size="sm" variant="soft" disabled={catalogBusy} onClick={() => void refreshCatalog()}>{catalogBusy ? <Spinner size={13} /> : <RefreshCw size={13} />} Refresh Pi catalog</Button>
         </Row>
         <Row label="AA data" hint={settings.models.lastAAUpdate ? `Last updated ${new Date(settings.models.lastAAUpdate).toLocaleString()} · source ${settings.models.aaSource ?? "unknown"}` : "Not fetched yet. The public leaderboard is fetched daily."}>
           <Button size="sm" variant="primary" onClick={() => void state.refreshAA()}><Download size={13} /> Refresh now</Button>
